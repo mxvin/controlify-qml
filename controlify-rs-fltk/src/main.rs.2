@@ -1,0 +1,114 @@
+use fltk::{app, enums::*, prelude::*, *};
+use fltk_theme::{WidgetTheme, ThemeType, ColorTheme, color_themes, widget_schemes, widget_themes};
+
+fn main() {
+    let app = app::App::default().with_scheme(app::Scheme::Gtk);
+    let theme = ColorTheme::new(color_themes::DARK_THEME);
+    let wtheme = WidgetTheme::new(ThemeType::AquaClassic);
+    wtheme.apply();
+    theme.apply();
+    
+    let x_corner = app::screen_size().0 as i32;
+    let y_corner = app::screen_size().1 as i32;
+    let mut wind = window::Window::new(x_corner, y_corner, 180, 30, "controlify");
+    
+        
+    let mut btn = button::Button::new(0,0,100,30,"Add to Playlist");
+    let mut btn_love = button::Button::new(100,0,50,30,"❤️");
+    let mut btn_expand = button::Button::new(150,0,30,30,"Max");
+    
+    
+    btn.set_frame(widget_themes::OS_DEFAULT_BUTTON_UP_BOX);
+    btn_love.set_frame(widget_themes::OS_DEFAULT_BUTTON_UP_BOX);
+    btn_expand.set_frame(widget_themes::OS_DEFAULT_BUTTON_UP_BOX);
+
+    btn_love.set_label_color(Color::Red);
+    btn_love.set_label_size(30);
+
+    let mut is_wind_exp : bool = false;
+    btn_expand.set_callback({
+        let mut wind_cb = wind.clone();
+        move |_| {
+            if is_wind_exp == true {
+                wind_cb.resize(x_corner-200, y_corner-30, 200, 30);
+                is_wind_exp = !is_wind_exp;
+            }else{
+                wind_cb.resize(x_corner-200, y_corner-200, 200, 200);
+                is_wind_exp = !is_wind_exp;
+            }
+        }
+    });
+        
+    wind.end();
+    wind.show();
+    make_topmost(&wind);
+    
+    // Windows/FLTK bug leads to excess pixel after doing setWindowPos & setWindowLong only while window first draw so it needs to force resize
+    wind.resize(x_corner-180, y_corner-30, 180, 30);
+    
+    app.run().unwrap();
+}
+
+fn make_topmost(w: &window::Window) {
+    assert!(w.shown());
+    use std::os::raw::*;
+    const SWP_NOSIZE: u32 = 0x0001; // ignore the width and height params
+    const SWP_NOMOVE: u32 = 0x0002; // ignore the x and y params
+    const SWP_FRAMECHANGED:u32 = 0x0020;
+    
+    const WS_CAPTION: i64 = 0x00C00000;
+    const GWL_STYLE: i32 = -16;
+    
+    const RDW_ERASE : u32 = 0x0004;
+    const RDW_FRAME : u32 = 0x0400;
+    const RDW_INVALIDATE : u32 = 0x0001;
+    const RDW_ALLCHILDREN : u32 = 0x0080;
+    const RDW_UPDATENOW : u32 = 0x0100;
+
+
+
+    
+    pub type HWND = *mut c_void;
+    extern "C" {
+        pub fn SetWindowPos(
+            hwnd: HWND,
+            hwnd: HWND,
+            x: i32,
+            y: i32,
+            cx: i32,
+            cy: i32,
+            uflags: u32,
+        ) -> i32;
+        
+        pub fn GetWindowLongPtrA(
+            hwnd: HWND,
+            nIndex: i32
+        ) -> i64;
+
+        pub fn SetWindowLongPtrA(
+            hwnd: HWND,
+            nIndex: i32,
+            dwNewLong: i64
+        ) -> i64;
+        
+        pub fn RedrawWindow(
+            hWnd: HWND,
+            lprcUpdate: u32,
+            hrgnUpdate: u32, 
+            flags: u32
+        )-> u32;
+    }
+    unsafe {
+        let handle = w.raw_handle();
+        let val: *mut i64 = std::mem::transmute(-1 as i64);
+        
+        //Get window long
+        let hwnd_long :i64 = GetWindowLongPtrA(handle as _, GWL_STYLE);
+        let new_windowlong :i64 = hwnd_long & !WS_CAPTION;
+        
+        SetWindowLongPtrA(handle as _, GWL_STYLE, new_windowlong);
+        SetWindowPos(handle as _, val as _, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_FRAMECHANGED );
+        // let redraw: u32 = RedrawWindow(handle as _, 0,0, RDW_ERASE | RDW_FRAME | RDW_INVALIDATE | RDW_ALLCHILDREN | RDW_UPDATENOW);
+        // println!("redraw {}", redraw);
+    }
+}
